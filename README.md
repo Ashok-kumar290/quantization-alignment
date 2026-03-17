@@ -53,69 +53,66 @@ python run_experiment.py --model llama3 --precision 8bit --skip-probing
 python compare_results.py --model mistral --precisions fp16 8bit 4bit
 ```
 
-## Deployment on Lambda Cloud (A100 GPU)
+## Deployment on Lambda Cloud (GH200 / A100)
 
 ### 1. Launch Instance
 
-Launch an A100 (40GB or 80GB) instance on Lambda Cloud. The 80GB variant can comfortably hold a 7B FP16 model; 40GB works for all quantized configs and FP16 with offloading.
+Recommended: **1x GH200** (96GB HBM3). Also works on A100 40/80GB or H100.
 
-### 2. Setup Environment
+### 2. Setup
 
 ```bash
-# SSH into your instance
 ssh ubuntu@<your-lambda-ip>
+git clone https://github.com/Ashok-kumar290/quantization-alignment.git
+cd quantization-alignment
+bash setup_lambda.sh
+```
 
-# Clone / upload the project
-git clone <your-repo-url> quantization
-cd quantization
+This creates a venv, installs all dependencies (handles ARM/aarch64 on GH200), installs Jupyter, and registers a kernel.
 
-# Create a virtual environment (Lambda instances come with CUDA + PyTorch pre-installed)
-python3 -m venv --system-site-packages venv
+### 3. Run via Jupyter Notebook
+
+```bash
+source venv/bin/activate
+jupyter lab --ip=0.0.0.0 --port=8888 --no-browser
+```
+
+Open `notebooks/run_pipeline.ipynb`, select kernel **"Quantization Research"**, and run all cells. The notebook runs the full cross-precision comparison with inline plots.
+
+### 4. Run via Terminal
+
+```bash
 source venv/bin/activate
 
-# Install project dependencies (PyTorch is already available system-wide)
-pip install -r requirements.txt
-
-# Verify GPU
-python -c "import torch; print(f'GPU: {torch.cuda.get_device_name(0)}, VRAM: {torch.cuda.get_device_properties(0).total_mem / 1e9:.0f}GB')"
-```
-
-### 3. Run Experiments
-
-```bash
-# Single precision run (~30-60 min on A100)
+# Single precision (~30-60 min on GH200)
 python run_experiment.py --model mistral --precision 4bit
 
-# Full cross-precision comparison (~2-4 hours on A100)
+# Cross-precision comparison (~1-2 hours on GH200)
 python compare_results.py --model mistral --precisions fp16 8bit 4bit
 
-# With all four precision levels
-python compare_results.py --model mistral --precisions fp16 8bit 4bit 3bit
-
-# Use screen/tmux for long runs
+# Use tmux for long runs
 tmux new -s experiment
-python compare_results.py --model mistral --precisions fp16 8bit 4bit
-# Ctrl+B, D to detach; tmux attach -t experiment to reattach
+python compare_results.py --model mistral --precisions fp16 8bit 4bit 3bit
+# Ctrl+B, D to detach
 ```
 
-### 4. Download Results
+### 5. Download Results
 
 ```bash
-# From your local machine
-scp -r ubuntu@<your-lambda-ip>:~/quantization/results/ ./results/
+scp -r ubuntu@<your-lambda-ip>:~/quantization-alignment/results/ ./results/
 ```
 
-### Memory Requirements (A100)
+### Memory Requirements
 
-| Config | Model | VRAM Usage |
-|--------|-------|------------|
-| FP16 | Mistral 7B | ~14 GB |
-| 8-bit | Mistral 7B | ~8 GB |
-| 4-bit | Mistral 7B | ~5 GB |
-| 3-bit (NF4) | Mistral 7B | ~4 GB |
-| FP16 | Llama 3 8B | ~16 GB |
+| Config | Model | VRAM Usage | GH200 (96GB) | A100 40GB |
+|--------|-------|------------|:---:|:---:|
+| FP16 | Mistral 7B | ~14 GB | OK | OK |
+| 8-bit | Mistral 7B | ~8 GB | OK | OK |
+| 4-bit | Mistral 7B | ~5 GB | OK | OK |
+| 3-bit (NF4) | Mistral 7B | ~4 GB | OK | OK |
+| FP16 | Llama 3 8B | ~16 GB | OK | OK |
 
-A100 40GB handles all configurations including FP16. Activation collection adds ~2-4 GB overhead.
+GH200's 96GB leaves plenty of headroom for activation collection (~2-4 GB overhead).
 
 ## Pipeline Stages
 
